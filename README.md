@@ -127,6 +127,23 @@ Response JSON
 
 ## Deployment
 
+### Option 0: No Docker, No EC2 (API Gateway + Lambda)
+
+This is the simplest managed deployment path.
+
+```bash
+AWS_PROFILE=anish0637 \
+AWS_REGION=us-east-1 \
+AGENT_ID=WBXFYNOUAH \
+AGENT_ALIAS_ID=TSTALIASID \
+./scripts/deploy_lambda_apigw.sh
+```
+
+The script creates/updates:
+- Lambda function (`bedrock-agent-core-demo-lambda`)
+- IAM role for Lambda execution
+- HTTP API Gateway endpoint with `POST /invoke`
+
 ### Option 1: ECS (Recommended for prod)
 
 ```bash
@@ -136,7 +153,7 @@ Response JSON
 ### Option 2: AWS Lambda (Serverless)
 
 ```bash
-./scripts/deploy_lambda.py
+./scripts/deploy_lambda_apigw.sh
 ```
 
 ### Option 3: Local Docker

@@ -9,6 +9,7 @@ import json
 import os
 from typing import Any, Optional, Dict
 from datetime import datetime, timedelta
+from decimal import Decimal
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class BedrockAgentClient:
     def _ensure_session_table(self):
         """Create DynamoDB table for session state if it doesn't exist."""
         try:
-            self.dynamodb.create_table(
+            table = self.dynamodb.create_table(
                 TableName=self.session_table_name,
                 KeySchema=[
                     {"AttributeName": "session_id", "KeyType": "HASH"},
@@ -45,16 +46,32 @@ class BedrockAgentClient:
                     {"AttributeName": "timestamp", "AttributeType": "S"},
                 ],
                 BillingMode="PAY_PER_REQUEST",
-                TimeToLiveSpecification={
-                    "AttributeName": "ttl",
-                    "Enabled": True,
-                },
             )
+            table.wait_until_exists()
+            self._ensure_ttl_enabled()
             logger.info(f"Created DynamoDB table: {self.session_table_name}")
         except self.dynamodb.meta.client.exceptions.ResourceInUseException:
             logger.debug(f"Table {self.session_table_name} already exists")
+            self._ensure_ttl_enabled()
         except Exception as e:
             logger.warning(f"Could not create session table: {e}. Session state may not persist.")
+
+    def _ensure_ttl_enabled(self):
+        """Enable TTL on the session table if it is not already enabled."""
+        try:
+            client = self.dynamodb.meta.client
+            ttl_desc = client.describe_time_to_live(TableName=self.session_table_name)
+            ttl_status = ttl_desc.get("TimeToLiveDescription", {}).get("TimeToLiveStatus")
+            ttl_attr = ttl_desc.get("TimeToLiveDescription", {}).get("AttributeName")
+            if ttl_status == "ENABLED" and ttl_attr == "ttl":
+                return
+            client.update_time_to_live(
+                TableName=self.session_table_name,
+                TimeToLiveSpecification={"Enabled": True, "AttributeName": "ttl"},
+            )
+            logger.info(f"Enabled TTL on DynamoDB table: {self.session_table_name}")
+        except Exception as e:
+            logger.warning(f"Could not enable TTL on session table: {e}")
     
     def invoke(
         self,
@@ -165,7 +182,7 @@ class BedrockAgentClient:
                     "message": message,
                     "output": output,
                     "trace_id": trace_id,
-                    "duration_seconds": duration,
+                    "duration_seconds": Decimal(str(duration)),
                     "ttl": ttl_timestamp,
                 }
             )
