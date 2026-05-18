@@ -90,19 +90,36 @@ class BedrockAgentClient:
                 agentAliasId=self.agent_alias_id,
                 sessionId=session_id,
                 inputText=message,
-                sessionStateConfig={
+                sessionState={
                     "sessionAttributes": {
                         "trace_id": trace_id,
                         "invoked_at": invocation_started.isoformat(),
                     }
                 },
+                enableTrace=True,
             )
             
             # Parse streaming response
             output_text = ""
+            # The response is an event stream - collect completion events
             for event in response.get("completion", []):
-                if "text" in event:
-                    output_text += event["text"]
+                if isinstance(event, dict):
+                    if "text" in event:
+                        output_text += event.get("text", "")
+                    elif "chunk" in event:
+                        chunk = event["chunk"]
+                        if "bytes" in chunk:
+                            output_text += chunk["bytes"].decode("utf-8")
+            
+            # If no text found, try to get from response body
+            if not output_text and "body" in response:
+                import json
+                body = response["body"].read()
+                try:
+                    body_data = json.loads(body)
+                    output_text = body_data.get("output", "").get("text", "")
+                except Exception:
+                    pass  # If parsing fails, use empty output
             
             invocation_duration = (datetime.utcnow() - invocation_started).total_seconds()
             

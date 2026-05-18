@@ -64,16 +64,13 @@ def health():
 async def invoke_agent(request: InvokeRequest):
     """Invoke the Bedrock Agent Core with a user message."""
     if not bedrock_client:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "output": "Agent not initialized. Run `python3 scripts/create_agent.py` first.",
-                "session_id": request.session_id or "none",
-                "trace_id": "none",
-                "status": "error",
-                "duration_seconds": 0.0,
-                "error": "Agent not configured",
-            },
+        return InvokeResponse(
+            output="Agent not initialized. Run `python3 scripts/create_agent.py` first.",
+            session_id=request.session_id or "none",
+            trace_id="none",
+            status="error",
+            duration_seconds=0.0,
+            error="Agent not configured",
         )
     
     try:
@@ -83,19 +80,19 @@ async def invoke_agent(request: InvokeRequest):
             session_id=request.session_id,
             max_iterations=request.max_iterations,
         )
+        
+        # Ensure all required fields are present
+        result.setdefault("duration_seconds", 0.0)
         return InvokeResponse(**result)
     except Exception as e:
         logger.error(f"Request failed: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "output": f"Internal error: {str(e)}",
-                "session_id": request.session_id or "unknown",
-                "trace_id": "error",
-                "status": "error",
-                "duration_seconds": 0.0,
-                "error": str(e),
-            },
+        return InvokeResponse(
+            output=f"Internal error: {str(e)}",
+            session_id=request.session_id or "unknown",
+            trace_id="error",
+            status="error",
+            duration_seconds=0.0,
+            error=str(e),
         )
 
 
