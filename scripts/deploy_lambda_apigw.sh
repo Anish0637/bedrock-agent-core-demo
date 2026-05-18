@@ -72,6 +72,15 @@ fi
 
 API_ENDPOINT="$(${AWS} apigatewayv2 get-api --api-id "${API_ID}" --query ApiEndpoint --output text)"
 
+ROUTE_ID="$(${AWS} apigatewayv2 get-routes --api-id "${API_ID}" --query "Items[?RouteKey=='POST /invoke'].RouteId | [0]" --output text)"
+if [[ "${ROUTE_ID}" == "None" || -z "${ROUTE_ID}" ]]; then
+  INTEGRATION_ID="$(${AWS} apigatewayv2 get-integrations --api-id "${API_ID}" --query "Items[0].IntegrationId" --output text)"
+  ${AWS} apigatewayv2 create-route \
+    --api-id "${API_ID}" \
+    --route-key 'POST /invoke' \
+    --target "integrations/${INTEGRATION_ID}" >/dev/null
+fi
+
 if ! ${AWS} lambda get-policy --function-name "${FUNCTION_NAME}" 2>/dev/null | grep -q "apigateway.amazonaws.com"; then
   ${AWS} lambda add-permission \
     --function-name "${FUNCTION_NAME}" \
